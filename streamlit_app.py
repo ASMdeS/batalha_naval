@@ -51,78 +51,7 @@ if check_password():
         # Perform query.
 
         sql_df = conn.query('''
-        WITH realized AS (WITH pnl_product AS (SELECT DATE_FORMAT(date, '%Y-%m-01')                                        AS month,
-                                                      product.warehouse,
-                                                      product.id,
-                                                      product.sku,
-                                                      product.category2,
-                                                      product.title,
-                                                      product.price,
-                                                      sext.dist_cost + sext.warehouse_cost                                 AS ops_costs,
-                                                      sext.cost_perc_rev                                                   AS other_costs,
-                                                      SUM(lucro_bruto.total_quantity)                                      AS units,
-                                                      SUM(lucro_bruto.total_gmv - lucro_bruto.total_discount) /
-                                                      SUM(lucro_bruto.total_quantity)                                      AS avg_price,
-                                                      SUM(lucro_bruto.total_gmv)                                           as gross_revenue,
-                                                      SUM(lucro_bruto.total_net_revenue)                                   as net_revenue,
-                                                      SUM(lucro_bruto.total_gross_profit)                                  as gross_profit,
-                                                      SUM(lucro_bruto.total_adj_cost)                                      as cogs,
-                                                      (SUM((sext.dist_cost + sext.warehouse_cost) * lucro_bruto.total_kg)) AS total_ops_cost,
-                                                      (SUM(sext.cost_perc_rev * lucro_bruto.total_gmv))                    as total_other_costs,
-                                                      (SUM(lucro_bruto.total_kg))                                          as weight,
-                                                      ((SUM(lucro_bruto.total_gross_profit)
-                                                          - (SUM((sext.dist_cost + sext.warehouse_cost) * lucro_bruto.total_kg))
-                                                          - (SUM(sext.cost_perc_rev * lucro_bruto.total_gmv)))
-                                                          )                                                                AS cont_profit
-                                               FROM supply.lucro_bruto_raw_v2 lucro_bruto
-                                                        INNER JOIN prasodata.product on lucro_bruto.product_id = product.id
-                                                        LEFT JOIN supply.sheets_expenses_tree sext
-                                                                  ON sext.state = product.region and
-                                                                     sext.temperature = product.temperature AND
-                                                                     DATE_FORMAT(sext.month, '%Y-%m-01') =
-                                                                     DATE_FORMAT(date, '%Y-%m-01')
-                                               WHERE DATE_FORMAT(date, '%Y-%m-01') = DATE_FORMAT(CURDATE(), '%Y-%m-01')
-                                                 AND lucro_bruto.region IN ('PE', 'CE')
-                                                 AND lucro_bruto.flag_transfer = 0
-                                                 AND lucro_bruto.flag_transfer_devolution = 0
-                                               GROUP BY lucro_bruto.product_id)
-                          SELECT pl.month
-                               , pl.warehouse
-                               , pl.id
-                               , pl.title
-                               , pl.avg_price                     as avg_price
-                               , pl.gross_profit / pl.net_revenue as gross_margin
-                               , pl.gross_profit / pl.weight      as profit_kg
-                               , pl.cont_profit / pl.net_revenue  as cont_margin
-                               , pl.gross_revenue
-                               , pl.net_revenue
-                               , pl.gross_profit
-                               , pl.cont_profit
-                               , pl.other_costs
-                               , pl.ops_costs
-                               , pl.weight
-                          FROM pnl_product pl
-                          GROUP BY pl.id
-                          ORDER BY net_revenue desc)
-        SELECT p.id,
-               p.title,
-               p.category2,
-               p.category3,
-               ROUND(r.cont_margin * 100, 2) AS Executed_Margin,
-               ROUND(piap.maco_target * 100, 2) AS Margin_Target,
-               piap.price_index_all_all,
-               piap.price_index_all_clube,
-               piap.price_index_all_crawlers,
-               piap.price_index_all_infoprice,
-               piap.price_index_all_nf
-        FROM pricing.price_index_active_pe piap
-                 LEFT JOIN prasodata.product p ON piap.product_id = p.id
-        LEFT JOIN realized r on piap.product_id = r.id
-        WHERE piap.price_index_all_all BETWEEN 65 AND 135
-          AND p.flag_weighted = 0
-        ORDER BY category2, 
-            category3, 
-            price_index_all_all
+        SELECT * FROM supply.pricing_visualization
 
         ''', ttl=600)
 
