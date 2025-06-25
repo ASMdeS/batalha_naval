@@ -70,7 +70,8 @@ if check_password():
             'Club',
             'Crawlers',
             'Infoprice',
-            'NF'
+            'NF',
+            'cont_profit'
         ]
 
         # Group by region, category3, and category2, then calculate the median.
@@ -185,6 +186,7 @@ if check_password():
                 alt.Tooltip('Executed_Margin:Q', title='Margem Executada (%)', format='.2f'),
                 alt.Tooltip(f'{selected_index_col}:Q', title=f'Selected Index ({selected_index_name})', format='.2f'),
                 alt.Tooltip('All_Indexes:Q', title='Index (All)', format='.2f'),
+                alt.Tooltip('cont_profit:Q', title='Lucro de Contribuição (R$)', format='.2f'),
             ]
         else:  # Category Median view
             circle_size = 200
@@ -196,6 +198,7 @@ if check_password():
                 alt.Tooltip(f'{selected_index_col}:Q', title=f'Median Selected Index ({selected_index_name})',
                             format='.2f'),
                 alt.Tooltip('All_Indexes:Q', title='Median Index (All)', format='.2f'),
+                alt.Tooltip('cont_profit:Q', title='Median Contribution Profit (R$)', format='.2f'),
             ]
 
         if selected_category2 == 'All':
