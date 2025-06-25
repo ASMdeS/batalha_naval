@@ -52,30 +52,33 @@ if check_password():
 
         sql_df = conn.query('''
         SELECT * FROM supply.pricing_visualization
-
         ''', ttl=600)
 
         return sql_df
 
 
+    # --- MODIFIED FUNCTION ---
     def grouped_by_category3(product_df):
-        # Define the columns for which you want to calculate the median
+        """
+        Calculates the median of key metrics, now grouped by region,
+        category level 3, and category level 2.
+        """
         columns_to_aggregate = [
             'Executed_Margin',
             'Margin_Target',
-            'price_index_all_all',
-            'price_index_all_clube',
-            'price_index_all_crawlers',
-            'price_index_all_infoprice',
-            'price_index_all_nf'
+            'All_Indexes',
+            'Club',
+            'Crawlers',
+            'Infoprice',
+            'NF'
         ]
 
-        # Group by both 'category3' and 'category2', calculate the median,
-        # and then reset the index to turn the grouped columns back into regular columns.
-        median_values = product_df.groupby(['category3', 'category2'])[columns_to_aggregate].median().reset_index()
+        # Group by region, category3, and category2, then calculate the median.
+        median_values = product_df.groupby(['region', 'category3', 'category2'])[
+            columns_to_aggregate].median().reset_index()
 
-        # Reorder columns for a more logical presentation
-        median_values = median_values[['category2', 'category3'] + columns_to_aggregate]
+        # Reorder columns for a more logical presentation.
+        median_values = median_values[['region', 'category2', 'category3'] + columns_to_aggregate]
 
         return median_values
 
@@ -95,26 +98,45 @@ if check_password():
     # --- SIDEBAR FILTERS ---
     st.sidebar.header("Configurações")
 
-    # --- NEW: SELECTOR FOR VIEW LEVEL ---
     view_level = st.sidebar.radio(
         "Selecione Nível de Visualização:",
         ("Por produto", "Por Categoria Nível 3"),
         key='view_level'
     )
 
-    # --- NEW: CHOOSE DATAFRAME BASED ON SELECTION ---
     if view_level == "Por produto":
         data_for_filtering = df
     else:
         data_for_filtering = df_median
 
+    # --- NEW: REGION FILTER ---
+    # Get unique region options from the dataframe, ensuring 'PE' is first if it exists.
+    try:
+        region_options = sorted(data_for_filtering['region'].unique())
+        default_region_index = region_options.index('PE') if 'PE' in region_options else 0
+
+        selected_region = st.sidebar.selectbox(
+            'Selecione a Região:',
+            options=region_options,
+            index=default_region_index  # Set 'PE' as the default
+        )
+        # Filter the dataframe immediately based on the selected region
+        data_for_filtering = data_for_filtering[data_for_filtering['region'] == selected_region]
+
+    except (KeyError, AttributeError):
+        st.sidebar.error("A coluna 'region' não foi encontrada nos dados.")
+        # Stop execution in the sidebar if the crucial 'region' column is missing.
+        st.stop()
+
+    # --- END OF NEW CODE ---
+
     # Dropdown for selecting the price index
     index_options = {
-        "All Competitors": "price_index_all_all",
-        "Club da Cotação": "price_index_all_clube",
-        "Crawlers": "price_index_all_crawlers",
-        "Infoprice": "price_index_all_infoprice",
-        "Nota Fiscal (NF)": "price_index_all_nf"
+        "All Competitors": "All_Indexes",
+        "Club da Cotação": "Club",
+        "Crawlers": "Crawlers",
+        "Infoprice": "Infoprice",
+        "Nota Fiscal (NF)": "NF"
     }
     selected_index_name = st.sidebar.selectbox(
         'Selecione Price Index para comparação:',
@@ -122,69 +144,60 @@ if check_password():
     )
     selected_index_col = index_options[selected_index_name]
 
-    # --- MODIFIED: FILTERS NOW USE THE DYNAMICALLY SELECTED DATAFRAME ---
-    # Create a list of options for Category 2, including 'All'
+    # Filters now use the region-filtered dataframe
     category2_options = ['All'] + list(data_for_filtering['category2'].unique())
     selected_category2 = st.sidebar.selectbox(
         'Selecione Categoria Nível 2:',
         options=category2_options
     )
 
-    # Filter dataframe based on Category 2 selection
     if selected_category2 == 'All':
         filtered_df = data_for_filtering
     else:
         filtered_df = data_for_filtering[data_for_filtering['category2'] == selected_category2]
 
-    # Create a list of options for Category 3 based on the filtered_df, including 'All'
     category3_options = ['All'] + list(filtered_df['category3'].unique())
     selected_category3 = st.sidebar.selectbox(
         'Selecione Categoria Nível 3:',
         options=category3_options
     )
 
-    # Final filtered dataframe based on Category 3 selection
     if selected_category3 == 'All':
         final_df = filtered_df
     else:
         final_df = filtered_df[filtered_df['category3'] == selected_category3]
 
     # --- MAIN PANEL: HEATMAP / SCATTER PLOT ---
-    st.header(f"Análise de Price Index vs. {selected_index_name}")
+    st.header(f"Análise de Price Index vs. {selected_index_name} (Região: {selected_region})")
 
     if final_df.empty:
-        st.warning("No data available for the selected filter combination.")
+        st.warning("Nenhum dado disponível para a combinação de filtros selecionada.")
     else:
-        # --- NEW: DYNAMIC TOOLTIPS AND SIZES BASED ON VIEW LEVEL ---
+        # --- MODIFIED: DYNAMIC TOOLTIPS WITH REGION ---
         if view_level == "Por produto":
             circle_size = 100
             tooltip_config = [
                 alt.Tooltip('id:Q', title='Product ID'),
                 alt.Tooltip('title:N', title='Product Title'),
+                alt.Tooltip('region:N', title='Região'),
                 alt.Tooltip('category2:N', title='Category L2'),
                 alt.Tooltip('category3:N', title='Category L3'),
                 alt.Tooltip('Executed_Margin:Q', title='Margem Executada (%)', format='.2f'),
                 alt.Tooltip(f'{selected_index_col}:Q', title=f'Selected Index ({selected_index_name})', format='.2f'),
-                alt.Tooltip('price_index_all_all:Q', title='Index (All)', format='.2f'),
-                alt.Tooltip('price_index_all_clube:Q', title='Index (Club)', format='.2f'),
-                alt.Tooltip('price_index_all_crawlers:Q', title='Index (Crawlers)', format='.2f'),
-                alt.Tooltip('price_index_all_infoprice:Q', title='Index (Infoprice)', format='.2f'),
-                alt.Tooltip('price_index_all_nf:Q', title='Index (NF)', format='.2f')
+                alt.Tooltip('All_Indexes:Q', title='Index (All)', format='.2f'),
             ]
         else:  # Category Median view
             circle_size = 200
             tooltip_config = [
+                alt.Tooltip('region:N', title='Região'),
                 alt.Tooltip('category2:N', title='Category L2'),
                 alt.Tooltip('category3:N', title='Category L3'),
                 alt.Tooltip('Executed_Margin:Q', title='Median Executed Margin (%)', format='.2f'),
                 alt.Tooltip(f'{selected_index_col}:Q', title=f'Median Selected Index ({selected_index_name})',
                             format='.2f'),
-                alt.Tooltip('price_index_all_all:Q', title='Median Index (All)', format='.2f'),
+                alt.Tooltip('All_Indexes:Q', title='Median Index (All)', format='.2f'),
             ]
 
-        # --- MODIFIED SECTION: DYNAMIC COLOR ENCODING ---
-        # Determine the color encoding based on the filter selection.
-        # If a specific Category L2 is chosen, we color by Category L3 for better insight.
         if selected_category2 == 'All':
             color_encoding = alt.Color('category2:N', title='Categoria Nível 2')
         else:
@@ -196,7 +209,6 @@ if check_password():
                     scale=alt.Scale(domain=[65, 135])),
             y=alt.Y('Executed_Margin:Q',
                     title='Executed Margin (%)' if view_level == "Por produto" else "Median Executed Margin (%)"),
-            # Use the dynamically defined color encoding here
             color=color_encoding,
             tooltip=tooltip_config
         ).properties(
@@ -204,11 +216,7 @@ if check_password():
             height=500
         ).interactive()
 
-        # ... the rest of your code for target lines and labels remains the same ...
-
-        # Define the horizontal target line at the Margin Target
         target_margin = final_df['Margin_Target'].mean()
-
         target_line = alt.Chart(pd.DataFrame({'Executed_Margin': [target_margin]})).mark_rule(
             color='red',
             strokeDash=[4, 4],
@@ -217,13 +225,12 @@ if check_password():
             y='Executed_Margin:Q'
         )
 
-        # Add a text label for the target line
         target_label = alt.Chart(pd.DataFrame({'y': [target_margin], 'label': [f'Margem Target: {target_margin:.2f}%']})
                                  ).mark_text(
             align='left',
             baseline='bottom',
-            dx=5,  # Nudge text to the right
-            dy=-5,  # Nudge text up
+            dx=5,
+            dy=-5,
             color='red'
         ).encode(
             y=alt.Y('y:Q'),
@@ -232,6 +239,5 @@ if check_password():
 
         st.altair_chart(heatmap + target_line + target_label, use_container_width=True)
 
-        # --- DISPLAY FILTERED DATA TABLE ---
-        with st.expander(f"Visualizar tabela {view_level}"):
+        with st.expander(f"Visualizar tabela {view_level} para a região de {selected_region}"):
             st.dataframe(final_df)
